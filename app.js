@@ -6,8 +6,28 @@ function emit(event, data) { s.emit(event, data); }
 
 function login(nextRole) {
   role = nextRole;
-  emit(nextRole === 'admin' ? 'adminLogin' : nextRole === 'player' ? 'playerLogin' : 'watchLogin', $('code').value.trim());
+  const code = $('code').value.trim();
+  localStorage.setItem('noiseRole', nextRole);
+  localStorage.setItem('noiseCode', code);
+  authenticate(nextRole, code);
 }
+
+function authenticate(nextRole, code) {
+  emit(nextRole === 'admin' ? 'adminLogin' : nextRole === 'player' ? 'playerLogin' : 'watchLogin', code);
+}
+
+s.on('connect', () => {
+  const savedRole = localStorage.getItem('noiseRole');
+  const savedCode = localStorage.getItem('noiseCode');
+  if (savedRole && savedCode) {
+    role = savedRole;
+    authenticate(savedRole, savedCode);
+  }
+});
+
+s.on('disconnect', () => {
+  $('msg').textContent = 'انقطع الاتصال مؤقتًا — جارٍ إعادة الاتصال تلقائيًا';
+});
 
 function showGame() {
   $('login').hidden = true;
@@ -18,6 +38,8 @@ function showGame() {
 
 s.on('auth', data => {
   if (!data.ok) {
+    localStorage.removeItem('noiseRole');
+    localStorage.removeItem('noiseCode');
     $('msg').textContent = 'رمز غير صحيح';
     return;
   }
@@ -34,12 +56,12 @@ s.on('auth', data => {
 });
 
 s.on('playerAuth', ok => {
-  if (ok) { role = 'player'; showGame(); }
+  if (ok) { role = 'player'; $('login').hidden = true; $('game').hidden = false; $('admin').hidden = true; emit('requestState'); }
   else $('msg').textContent = 'رمز لاعب غير صحيح';
 });
 
 s.on('watchAuth', ok => {
-  if (ok) { role = 'watch'; showGame(); }
+  if (ok) { role = 'watch'; $('login').hidden = true; $('game').hidden = false; $('admin').hidden = true; emit('requestState'); }
   else $('msg').textContent = 'رمز مشاهدة غير صحيح';
 });
 
@@ -72,12 +94,20 @@ s.on('state', game => {
 
   $('board').innerHTML = game.board.map(card => {
     const label = card.gone ? '' : card.up ?
-      (card.kind === 'bomb' ? '💣' : card.kind === 'bonus' ? '+' + card.value + ' 🎁' : '✦') : '?';
+      (card.kind === 'bomb' ? '💣' : card.kind === 'bonus' ? '+' + card.value + ' 🎁' : String(card.value + 1)) : '?';
     const disabled = card.gone || card.up || game.status !== 'playing' || role !== 'player';
     return '<button class="card ' + (card.gone ? 'gone' : '') + '"' +
       (disabled ? ' disabled' : '') + ' onclick="flip(' + card.id + ')">' + label + '</button>';
   }).join('');
   $('log').innerHTML = game.log.map(escapeHtml).join('<br>');
+  if ($('presence')) {
+    const people = game.presence.players.map(p =>
+      '<div class="presence-person"><span>' + escapeHtml(p.name) + '</span><b class="' + (p.online ? 'online' : 'offline') + '">' + (p.online ? 'متصل' : 'خرج من الصفحة') + '</b></div>'
+    ).join('');
+    $('presence').innerHTML = '<div class="presence-person"><span>المشرف</span><b class="' +
+      (game.presence.admin ? 'online' : 'offline') + '">' + (game.presence.admin ? 'متصل' : 'غير متصل') +
+      '</b></div>' + people + '<small>المشاهدون المتصلون: ' + game.presence.watchers + '</small>';
+  }
 });
 
 function escapeHtml(value) {
