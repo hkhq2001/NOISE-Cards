@@ -92,6 +92,17 @@ s.on('state', game => {
     game.status === 'finished' ? ' — انتهت المواجهة' : '';
   $('turn').textContent = 'الجولة ' + game.round + '/' + game.rounds +
     ' — الدور: ' + game.turn + suffix;
+  $('log').hidden = role !== 'admin';
+  if (window.noiseTurnClock) clearInterval(window.noiseTurnClock);
+  const updateClock = () => {
+    const seconds = game.turnEndsAt ? Math.max(0, Math.ceil((game.turnEndsAt - Date.now()) / 1000)) : 0;
+    $('turn').textContent = 'الجولة ' + game.round + '/' + game.rounds +
+      ' — الدور: ' + game.turn + (game.status === 'playing' ? ' — الوقت المتبقي: ' + seconds + ' ثانية' : suffix);
+  };
+  updateClock();
+  if (game.status === 'playing' && game.turnEndsAt) {
+    window.noiseTurnClock = setInterval(updateClock, 250);
+  }
 
   $('board').innerHTML = game.board.map(card => {
     const label = card.gone ? '' : card.up ?
