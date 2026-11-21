@@ -10,6 +10,7 @@ app.use(express.static(__dirname));
 
 const makeCode = () => crypto.randomBytes(4).toString("hex").toUpperCase();
 let game;
+let turnTimer = null;
 
 function resetGame() {
   game = {
@@ -25,6 +26,22 @@ function resetGame() {
   };
 }
 
+function stopTurnTimer() {
+  if (turnTimer) clearTimeout(turnTimer);
+  turnTimer = null;
+  if (game) game.turnEndsAt = null;
+}
+
+function startTurnTimer() {
+  stopTurnTimer();
+  if (game.status !== "playing") return;
+  game.turnEndsAt = Date.now() + 30000;
+  turnTimer = setTimeout(() => {
+    turnTimer = null;
+    if (game.status === "playing" && !game.busy) advanceTurn();
+  }, 30000);
+}
+
 function getState() {
   return {
     status: game.status,
@@ -38,7 +55,7 @@ function getState() {
       kind: card.up ? card.kind : null
     })),
     team: game.team, player: game.player,
-    turn: game.teams[game.team]?.players[game.player]?.name || "",
+    turn: game.teams[game.team]?.players[game.player]?.name || "",\n    turnEndsAt: game.turnEndsAt || null,
     log: game.log.slice(-25),
     presence: {
       admin: game.online.admin.size > 0,
