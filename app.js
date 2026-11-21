@@ -58,7 +58,7 @@ s.on('auth', data => {
 
 s.on('playerAuth', ok => {
   if (ok) { role = 'player'; $('login').hidden = true; $('game').hidden = false; $('admin').hidden = true; emit('requestState'); }
-  else $('msg').textContent = 'رمز لاعب غير صحيح';
+  else { localStorage.removeItem('noiseRole'); localStorage.removeItem('noiseCode'); $('msg').textContent = 'رمز لاعب غير صحيح — استخدم الرمز الحالي الظاهر عند المشرف بعد آخر حفظ للإعدادات'; }
 });
 
 s.on('watchAuth', ok => {
