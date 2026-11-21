@@ -38,7 +38,14 @@ function startTurnTimer() {
   game.turnEndsAt = Date.now() + 30000;
   turnTimer = setTimeout(() => {
     turnTimer = null;
-    if (game.status === "playing" && !game.busy) advanceTurn();
+    if (game.status === "playing" && !game.busy) {
+      for (const id of game.revealed) {
+        const card = game.board.find(item => item.id === id);
+        if (card && !card.gone) card.up = false;
+      }
+      game.log.push("انتهى الوقت — انتقل الدور");
+      advanceTurn();
+    }
   }, 30000);
 }
 
