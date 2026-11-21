@@ -6,14 +6,15 @@ function emit(event, data) { s.emit(event, data); }
 
 function login(nextRole) {
   role = nextRole;
-  const code = $('code').value.trim();
+  const code = $('code').value.trim().toUpperCase();
   localStorage.setItem('noiseRole', nextRole);
   localStorage.setItem('noiseCode', code);
   authenticate(nextRole, code);
 }
 
 function authenticate(nextRole, code) {
-  emit(nextRole === 'admin' ? 'adminLogin' : nextRole === 'player' ? 'playerLogin' : 'watchLogin', code);
+  const normalizedCode = String(code || '').trim().toUpperCase();
+  emit(nextRole === 'admin' ? 'adminLogin' : nextRole === 'player' ? 'playerLogin' : 'watchLogin', normalizedCode);
 }
 
 s.on('connect', () => {
@@ -96,8 +97,10 @@ s.on('state', game => {
     const label = card.gone ? '' : card.up ?
       (card.kind === 'bomb' ? '💣' : card.kind === 'bonus' ? '+' + card.value + ' 🎁' : String(card.value + 1)) : '?';
     const disabled = card.gone || card.up || game.status !== 'playing' || role !== 'player';
-    return '<button class="card ' + (card.gone ? 'gone' : '') + '"' +
-      (disabled ? ' disabled' : '') + ' onclick="flip(' + card.id + ')">' + label + '</button>';
+    return '<button type="button" class="card ' + (card.gone ? 'gone' : '') + (card.up ? ' revealed' : '') + '"' +
+      ' data-card-id="' + card.id + '"' + (disabled ? ' disabled' : '') +
+      ' aria-label="' + (card.gone ? 'بطاقة مستخدمة' : card.up ? 'بطاقة مكشوفة' : 'اكشف البطاقة') + '">' +
+      '<span class="card-content">' + label + '</span></button>';
   }).join('');
   $('log').innerHTML = game.log.map(escapeHtml).join('<br>');
   if ($('presence')) {
@@ -116,6 +119,8 @@ function escapeHtml(value) {
   })[ch]);
 }
 
-function flip(id) {
-  if (role === 'player') emit('flip', id);
-}
+$('board').addEventListener('click', event => {
+  const card = event.target.closest('button[data-card-id]');
+  if (!card || card.disabled || role !== 'player') return;
+  emit('flip', Number(card.dataset.cardId));
+});
