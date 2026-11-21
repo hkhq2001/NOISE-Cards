@@ -129,7 +129,8 @@ io.on("connection", socket => {
   });
 
   socket.on("playerLogin", code => {
-    const player = game.codes[code];
+    const normalizedCode = String(code || "").trim().toUpperCase();
+    const player = game.codes[normalizedCode];
     if (!player) return socket.emit("playerAuth", false);
     socket.data.role = "player";
     socket.data.player = player;
@@ -197,34 +198,29 @@ io.on("connection", socket => {
     card.up = true;
     game.revealed.push(card.id);
 
-    if (card.kind === "bomb") {
-      game.teams[game.team].score = 0;
-      game.log.push("قنبلة! تم تصفير نقاط " + game.teams[game.team].name);
-      card.gone = true;
-      card.up = false;
-      for (const revealedId of game.revealed) {
-        const revealedCard = game.board.find(item => item.id === revealedId);
-        if (revealedCard && !revealedCard.gone) revealedCard.up = false;
-      }
-      game.revealed = [];
-      checkRoundEnd();
-      if (game.status === "playing") advanceTurn();
-      else sendState();
-      return;
-    }
-
-    if (card.kind === "bonus") {
-      game.teams[game.team].score += card.value;
-      game.log.push("بطاقة مكافأة: +" + card.value);
-      card.gone = true;
-      card.up = false;
-      for (const revealedId of game.revealed) {
-        const revealedCard = game.board.find(item => item.id === revealedId);
-        if (revealedCard && !revealedCard.gone) revealedCard.up = false;
-      }
-      game.revealed = [];
-      checkRoundEnd();
+    if (card.kind === "bomb" || card.kind === "bonus") {
+      game.busy = true;
       sendState();
+      setTimeout(() => {
+        if (card.kind === "bomb") {
+          game.teams[game.team].score = 0;
+          game.log.push("قنبلة! تم تصفير نقاط " + game.teams[game.team].name);
+        } else {
+          game.teams[game.team].score += card.value;
+          game.log.push("بطاقة مكافأة: +" + card.value);
+        }
+        card.gone = true;
+        card.up = false;
+        for (const revealedId of game.revealed) {
+          const revealedCard = game.board.find(item => item.id === revealedId);
+          if (revealedCard && !revealedCard.gone) revealedCard.up = false;
+        }
+        game.revealed = [];
+        game.busy = false;
+        checkRoundEnd();
+        if (card.kind === "bomb" && game.status === "playing") advanceTurn();
+        else sendState();
+      }, 900);
       return;
     }
 
