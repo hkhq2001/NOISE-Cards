@@ -5,7 +5,7 @@ const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, { connectionStateRecovery: { maxDisconnectionDuration: 7200000, skipMiddlewares: true } });
 app.use(express.static(__dirname));
 
 const makeCode = () => crypto.randomBytes(4).toString("hex").toUpperCase();
@@ -20,7 +20,8 @@ function resetGame() {
     ],
     rounds: 1, round: 1, pairs: 8, bombs: 1, bonuses: 2,
     board: [], team: 0, player: 0, turnIndex: 0,
-    status: "lobby", log: [], revealed: [], busy: false
+    status: "lobby", log: [], revealed: [], busy: false,
+    online: { admin: new Set(), players: [new Set(), new Set(), new Set(), new Set()], watchers: new Set() }
   };
 }
 
@@ -38,7 +39,12 @@ function getState() {
     })),
     team: game.team, player: game.player,
     turn: game.teams[game.team]?.players[game.player]?.name || "",
-    log: game.log.slice(-25)
+    log: game.log.slice(-25),
+    presence: {
+      admin: game.online.admin.size > 0,
+      players: game.teams.flatMap((team, ti) => team.players.map((p, pi) => ({ name: p.name, team: ti, player: pi, online: game.online.players[ti * 2 + pi].size > 0 }))),
+      watchers: game.online.watchers.size
+    }
   };
 }
 
@@ -90,16 +96,34 @@ function checkRoundEnd() {
 
 function isAdmin(socket) { return socket.data.role === "admin"; }
 
+function leavePresence(socket) {
+  const key = socket.data.presenceKey;
+  if (!key) return;
+  const set = key === "admin" ? game.online.admin : key === "watch" ? game.online.watchers : game.online.players[Number(key)];
+  if (set) set.delete(socket.id);
+  socket.data.presenceKey = null;
+  sendState();
+}
+
+function joinPresence(socket, key) {
+  leavePresence(socket);
+  const set = key === "admin" ? game.online.admin : key === "watch" ? game.online.watchers : game.online.players[Number(key)];
+  if (set) set.add(socket.id);
+  socket.data.presenceKey = key;
+  sendState();
+}
+
 io.on("connection", socket => {
   socket.on("adminLogin", code => {
     if (code !== game.admin) return socket.emit("auth", { ok: false });
     socket.data.role = "admin";
+    joinPresence(socket, "admin");
     socket.emit("auth", { ok: true, admin: game.admin, watch: game.watch, codes: game.codes });
   });
 
   socket.on("watchLogin", code => {
     const ok = code === game.watch;
-    if (ok) socket.data.role = "watch";
+    if (ok) { socket.data.role = "watch"; joinPresence(socket, "watch"); }
     socket.emit("watchAuth", ok);
     if (ok) socket.emit("state", getState());
   });
@@ -109,6 +133,7 @@ io.on("connection", socket => {
     if (!player) return socket.emit("playerAuth", false);
     socket.data.role = "player";
     socket.data.player = player;
+    joinPresence(socket, String(player.team * 2 + player.player));
     socket.emit("playerAuth", true);
     socket.emit("state", getState());
   });
@@ -242,6 +267,8 @@ io.on("connection", socket => {
     createBoard();
     sendState();
   });
+
+  socket.on("disconnect", () => leavePresence(socket));
 
   socket.on("reset", () => {
     if (!isAdmin(socket)) return;
