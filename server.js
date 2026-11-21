@@ -55,7 +55,8 @@ function getState() {
       kind: card.up ? card.kind : null
     })),
     team: game.team, player: game.player,
-    turn: game.teams[game.team]?.players[game.player]?.name || "",\n    turnEndsAt: game.turnEndsAt || null,
+    turn: game.teams[game.team]?.players[game.player]?.name || "",
+    turnEndsAt: game.turnEndsAt || null,
     log: game.log.slice(-25),
     presence: {
       admin: game.online.admin.size > 0,
@@ -101,11 +102,13 @@ function advanceTurn() {
   game.player = game.turnIndex % 2;
   game.revealed = [];
   game.busy = false;
+  startTurnTimer();
   sendState();
 }
 
 function checkRoundEnd() {
   if (game.board.every(card => card.gone)) {
+    stopTurnTimer();
     game.status = game.round >= game.rounds ? "finished" : "roundEnd";
     game.log.push(game.status === "finished" ? "انتهت المواجهة" : "انتهت الجولة");
   }
@@ -167,6 +170,7 @@ io.on("connection", socket => {
       return socket.emit("configError", "أدخل اسماء اللاعبين الأربعة قبل حفظ الإعدادات");
     }
 
+    stopTurnTimer();
     game.teams = teams.map(team => ({
       name: String(team.name || "").trim() || "فريق",
       players: team.players.map(name => ({ name: String(name).trim() })),
@@ -201,6 +205,7 @@ io.on("connection", socket => {
     game.player = 0;
     game.log = [];
     createBoard();
+    startTurnTimer();
     sendState();
   });
 
@@ -216,6 +221,7 @@ io.on("connection", socket => {
     game.revealed.push(card.id);
 
     if (card.kind === "bomb" || card.kind === "bonus") {
+      stopTurnTimer();
       game.busy = true;
       sendState();
       setTimeout(() => {
@@ -236,6 +242,7 @@ io.on("connection", socket => {
         game.busy = false;
         checkRoundEnd();
         if (card.kind === "bomb" && game.status === "playing") advanceTurn();
+        else if (game.status === "playing") { startTurnTimer(); sendState(); }
         else sendState();
       }, 900);
       return;
@@ -250,8 +257,10 @@ io.on("connection", socket => {
         game.log.push("تطابق صحيح! +1 نقطة");
         game.revealed = [];
         checkRoundEnd();
+        if (game.status === "playing") startTurnTimer();
         sendState();
       } else {
+        stopTurnTimer();
         game.busy = true;
         sendState();
         setTimeout(() => {
@@ -278,6 +287,7 @@ io.on("connection", socket => {
     game.team = 0;
     game.player = 0;
     createBoard();
+    startTurnTimer();
     sendState();
   });
 
@@ -285,6 +295,7 @@ io.on("connection", socket => {
 
   socket.on("reset", () => {
     if (!isAdmin(socket)) return;
+    stopTurnTimer();
     resetGame();
     socket.emit("auth", { ok: true, admin: game.admin, watch: game.watch, codes: game.codes });
     sendState();
