@@ -1,29 +1,68 @@
-const s = io("https://noise-cards.onrender.com");
+const s = io("https://noise-cards.onrender.com", {
+  transports: ["websocket", "polling"],
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  timeout: 20000
+});
 const $ = id => document.getElementById(id);
 let role = null;
+let pendingLogin = null;
 
-function emit(event, data) { s.emit(event, data); }
+function emit(event, data) {
+  if (!s.connected) {
+    $('msg').textContent = 'جارٍ الاتصال بالسيرفر… انتظر لحظة ثم حاول مجددًا';
+    return false;
+  }
+  s.emit(event, data);
+  return true;
+}
 
 function login(nextRole) {
-  role = nextRole;
   const code = $('code').value.trim().toUpperCase();
+  if (!code) {
+    $('msg').textContent = 'أدخل رمز الدخول أولاً';
+    return;
+  }
+  role = nextRole;
   localStorage.setItem('noiseRole', nextRole);
   localStorage.setItem('noiseCode', code);
-  authenticate(nextRole, code);
+  pendingLogin = { role: nextRole, code };
+  $('msg').textContent = s.connected ? 'جارٍ التحقق من الرمز…' : 'جارٍ الاتصال بالسيرفر…';
+  if (s.connected) sendPendingLogin();
 }
 
 function authenticate(nextRole, code) {
   const normalizedCode = String(code || '').trim().toUpperCase();
-  emit(nextRole === 'admin' ? 'adminLogin' : nextRole === 'player' ? 'playerLogin' : 'watchLogin', normalizedCode);
+  const event = nextRole === 'admin' ? 'adminLogin' : nextRole === 'player' ? 'playerLogin' : 'watchLogin';
+  return emit(event, normalizedCode);
+}
+
+function sendPendingLogin() {
+  if (!pendingLogin || !s.connected) return;
+  const request = pendingLogin;
+  pendingLogin = null;
+  authenticate(request.role, request.code);
 }
 
 s.on('connect', () => {
+  $('msg').textContent = 'تم الاتصال بالسيرفر — أدخل رمزك واضغط نوع الدخول';
+  if (pendingLogin) {
+    sendPendingLogin();
+    return;
+  }
   const savedRole = localStorage.getItem('noiseRole');
   const savedCode = localStorage.getItem('noiseCode');
   if (savedRole && savedCode) {
     role = savedRole;
-    authenticate(savedRole, savedCode);
+    pendingLogin = { role: savedRole, code: savedCode };
+    sendPendingLogin();
   }
+});
+
+s.on('connect_error', error => {
+  $('msg').textContent = 'تعذر الاتصال بالسيرفر — جارٍ إعادة المحاولة. ' + (error && error.message ? error.message : '');
 });
 
 s.on('disconnect', () => {
@@ -39,9 +78,10 @@ function showGame() {
 
 s.on('auth', data => {
   if (!data.ok) {
+    pendingLogin = null;
     localStorage.removeItem('noiseRole');
     localStorage.removeItem('noiseCode');
-    $('msg').textContent = 'رمز غير صحيح';
+    $('msg').textContent = 'رمز المشرف غير صحيح';
     return;
   }
   role = 'admin';
@@ -58,12 +98,12 @@ s.on('auth', data => {
 
 s.on('playerAuth', ok => {
   if (ok) { role = 'player'; $('login').hidden = true; $('game').hidden = false; $('admin').hidden = true; emit('requestState'); }
-  else { localStorage.removeItem('noiseRole'); localStorage.removeItem('noiseCode'); $('msg').textContent = 'رمز لاعب غير صحيح — استخدم الرمز الحالي الظاهر عند المشرف بعد آخر حفظ للإعدادات'; }
+  else { pendingLogin = null; localStorage.removeItem('noiseRole'); localStorage.removeItem('noiseCode'); $('msg').textContent = 'رمز لاعب غير صحيح — استخدم الرمز الحالي الظاهر عند المشرف بعد آخر حفظ للإعدادات'; }
 });
 
 s.on('watchAuth', ok => {
   if (ok) { role = 'watch'; $('login').hidden = true; $('game').hidden = false; $('admin').hidden = true; emit('requestState'); }
-  else $('msg').textContent = 'رمز مشاهدة غير صحيح';
+  else { pendingLogin = null; $('msg').textContent = 'رمز مشاهدة غير صحيح'; }
 });
 
 s.on('configError', message => { $('msg').textContent = message; });
