@@ -10,7 +10,7 @@ app.use(express.static(__dirname));
 
 const makeCode = () => crypto.randomBytes(4).toString("hex").toUpperCase();
 let game;
-let turnTimer = null;
+let turnTimer = null;\nconst presenceTimers = new Map();\nconst PRESENCE_GRACE_MS = 30000;
 
 function resetGame() {
   game = {
@@ -19,7 +19,7 @@ function resetGame() {
       { name: "الفريق الأول", players: [], score: 0 },
       { name: "الفريق الثاني", players: [], score: 0 }
     ],
-    rounds: 1, round: 1, pairs: 8, bombs: 1, bonuses: 2,
+    rounds: 1, round: 1, cardCount: 19, pairs: 8, bombs: 1, bonuses: 2,
     board: [], team: 0, player: 0, turnIndex: 0,
     status: "lobby", log: [], revealed: [], busy: false,
     online: { admin: new Set(), players: [new Set(), new Set(), new Set(), new Set()], watchers: new Set() }
