@@ -16,7 +16,7 @@ const PRESENCE_GRACE_MS = 30000;
 
 function resetGame() {
   game = {
-    admin: "NOISE2026", watch: makeCode(), codes: {},
+    admin: "NOISE2026", watch: makeCode(), playerCode: makeCode(), codes: {},
     teams: [
       { name: "الفريق الأول", players: [], score: 0 },
       { name: "الفريق الثاني", players: [], score: 0 }
@@ -170,7 +170,7 @@ io.on("connection", socket => {
     if (code !== game.admin) return socket.emit("auth", { ok: false });
     socket.data.role = "admin";
     joinPresence(socket, "admin");
-    socket.emit("auth", { ok: true, admin: game.admin, watch: game.watch, codes: game.codes });
+    socket.emit("auth", { ok: true, admin: game.admin, watch: game.watch, playerCode: game.playerCode, codes: game.codes });
   });
 
   socket.on("watchLogin", code => {
@@ -180,9 +180,17 @@ io.on("connection", socket => {
     if (ok) socket.emit("state", getState());
   });
 
-  socket.on("playerLogin", code => {
-    const normalizedCode = String(code || "").trim().toUpperCase();
-    const player = game.codes[normalizedCode];
+  socket.on("playerLogin", payload => {
+    const normalizedCode = String(typeof payload === "string" ? payload : payload?.code || "").trim().toUpperCase();
+    const playerName = String(payload?.name || "").trim().toLocaleLowerCase();
+    let player = null;
+    if (normalizedCode === game.playerCode && playerName) {
+      for (let team = 0; team < game.teams.length; team++) {
+        const playerIndex = game.teams[team].players.findIndex(p => p.name.toLocaleLowerCase() === playerName);
+        if (playerIndex !== -1) { player = { team, player: playerIndex }; break; }
+      }
+    }
+    if (!player && game.codes[normalizedCode]) player = game.codes[normalizedCode];
     if (!player) return socket.emit("playerAuth", false);
     socket.data.role = "player";
     socket.data.player = player;
@@ -217,6 +225,7 @@ io.on("connection", socket => {
     }
     game.pairs = Math.floor((game.cardCount - game.bombs - game.bonuses) / 2);
     game.codes = {};
+    game.playerCode = makeCode();
     game.teams.forEach((team, teamIndex) => team.players.forEach((player, playerIndex) => {
       let code;
       do { code = makeCode(); } while (game.codes[code]);
