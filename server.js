@@ -5,7 +5,7 @@ const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: ["https://noise-cards.pages.dev", "https://noise-cards.onrender.com"], methods: ["GET", "POST"] }, connectionStateRecovery: { maxDisconnectionDuration: 7200000, skipMiddlewares: true } });
+const io = new Server(server, { cors: { origin: ["https://noise-cards.pages.dev", "https://noise-cards-pages.pages.dev", "https://noise-cards.onrender.com"], methods: ["GET", "POST"] }, connectionStateRecovery: { maxDisconnectionDuration: 7200000, skipMiddlewares: true } });
 app.use(express.static(__dirname));
 
 const makeCode = () => crypto.randomBytes(4).toString("hex").toUpperCase();
