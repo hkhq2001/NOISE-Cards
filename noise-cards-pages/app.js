@@ -23,26 +23,31 @@ function emit(event, data) {
 
 function login(nextRole) {
   $('playerName').style.display = nextRole === 'player' ? 'block' : 'none';
-  const code = $('code').value.trim().toUpperCase();
   const playerName = $('playerName').value.trim();
-  if (nextRole === 'player' && !playerName) { $('msg').textContent = 'اكتب اسمك أولاً'; return; }
-  if (!code) {
-    $('msg').textContent = 'أدخل رمز الدخول أولاً';
-    return;
+  if (nextRole === 'player') {
+    if (!playerName) { $('msg').textContent = 'اكتب اسمك أولاً'; return; }
+    role = 'player';
+    localStorage.setItem('noiseRole', 'player');
+    localStorage.setItem('noisePlayerName', playerName);
+    localStorage.removeItem('noiseCode');
+    pendingLogin = { role: 'player', name: playerName };
+    $('msg').textContent = s.connected ? 'جارٍ التحقق من الاسم…' : 'جارٍ الاتصال بالسيرفر…';
+  } else {
+    const code = $('code').value.trim().toUpperCase();
+    if (!code) { $('msg').textContent = 'أدخل رمز الدخول أولاً'; return; }
+    role = nextRole;
+    localStorage.setItem('noiseRole', nextRole);
+    localStorage.setItem('noiseCode', code);
+    pendingLogin = { role: nextRole, code, name: '' };
+    $('msg').textContent = s.connected ? 'جارٍ التحقق من الرمز…' : 'جارٍ الاتصال بالسيرفر…';
   }
-  role = nextRole;
-  localStorage.setItem('noiseRole', nextRole);
-  localStorage.setItem('noiseCode', code);
-  if (nextRole === 'player') localStorage.setItem('noisePlayerName', playerName);
-  pendingLogin = { role: nextRole, code, name: playerName };
-  $('msg').textContent = s.connected ? 'جارٍ التحقق من الرمز…' : 'جارٍ الاتصال بالسيرفر…';
   if (s.connected) sendPendingLogin();
 }
 
 function authenticate(nextRole, code, name) {
   const normalizedCode = String(code || '').trim().toUpperCase();
   const event = nextRole === 'admin' ? 'adminLogin' : nextRole === 'player' ? 'playerLogin' : 'watchLogin';
-  return emit(event, nextRole === 'player' ? { code: normalizedCode, name: name || localStorage.getItem('noisePlayerName') || '' } : normalizedCode);
+  return emit(event, nextRole === 'player' ? (name || localStorage.getItem('noisePlayerName') || '') : normalizedCode);
 }
 
 function sendPendingLogin() {
@@ -104,7 +109,7 @@ s.on('auth', data => {
 
 s.on('playerAuth', ok => {
   if (ok) { role = 'player'; $('login').hidden = true; $('game').hidden = false; $('admin').hidden = true; emit('requestState'); }
-  else { pendingLogin = null; localStorage.removeItem('noiseRole'); localStorage.removeItem('noiseCode'); $('msg').textContent = 'تعذر الدخول: تأكد من رمز اللاعبين وكتابة اسمك كما سجّله المشرف'; }
+  else { pendingLogin = null; localStorage.removeItem('noiseRole'); localStorage.removeItem('noiseCode'); localStorage.removeItem('noisePlayerName'); $('msg').textContent = 'الاسم غير مسجل: اكتبه كما سجّله المشرف'; }
 });
 
 s.on('watchAuth', ok => {
