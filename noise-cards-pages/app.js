@@ -7,6 +7,8 @@ const s = io("https://noise-cards.onrender.com", {
   timeout: 20000
 });
 const $ = id => document.getElementById(id);
+$('playerName').hidden = false;
+$('playerName').style.display = 'none';
 let role = null;
 let pendingLogin = null;
 
@@ -20,7 +22,10 @@ function emit(event, data) {
 }
 
 function login(nextRole) {
+  $('playerName').style.display = nextRole === 'player' ? 'block' : 'none';
   const code = $('code').value.trim().toUpperCase();
+  const playerName = $('playerName').value.trim();
+  if (nextRole === 'player' && !playerName) { $('msg').textContent = 'اكتب اسمك أولاً'; return; }
   if (!code) {
     $('msg').textContent = 'أدخل رمز الدخول أولاً';
     return;
@@ -28,22 +33,23 @@ function login(nextRole) {
   role = nextRole;
   localStorage.setItem('noiseRole', nextRole);
   localStorage.setItem('noiseCode', code);
-  pendingLogin = { role: nextRole, code };
+  if (nextRole === 'player') localStorage.setItem('noisePlayerName', playerName);
+  pendingLogin = { role: nextRole, code, name: playerName };
   $('msg').textContent = s.connected ? 'جارٍ التحقق من الرمز…' : 'جارٍ الاتصال بالسيرفر…';
   if (s.connected) sendPendingLogin();
 }
 
-function authenticate(nextRole, code) {
+function authenticate(nextRole, code, name) {
   const normalizedCode = String(code || '').trim().toUpperCase();
   const event = nextRole === 'admin' ? 'adminLogin' : nextRole === 'player' ? 'playerLogin' : 'watchLogin';
-  return emit(event, normalizedCode);
+  return emit(event, nextRole === 'player' ? { code: normalizedCode, name: name || localStorage.getItem('noisePlayerName') || '' } : normalizedCode);
 }
 
 function sendPendingLogin() {
   if (!pendingLogin || !s.connected) return;
   const request = pendingLogin;
   pendingLogin = null;
-  authenticate(request.role, request.code);
+  authenticate(request.role, request.code, request.name);
 }
 
 s.on('connect', () => {
@@ -56,7 +62,7 @@ s.on('connect', () => {
   const savedCode = localStorage.getItem('noiseCode');
   if (savedRole && savedCode) {
     role = savedRole;
-    pendingLogin = { role: savedRole, code: savedCode };
+    pendingLogin = { role: savedRole, code: savedCode, name: localStorage.getItem('noisePlayerName') || '' };
     sendPendingLogin();
   }
 });
@@ -98,7 +104,7 @@ s.on('auth', data => {
 
 s.on('playerAuth', ok => {
   if (ok) { role = 'player'; $('login').hidden = true; $('game').hidden = false; $('admin').hidden = true; emit('requestState'); }
-  else { pendingLogin = null; localStorage.removeItem('noiseRole'); localStorage.removeItem('noiseCode'); $('msg').textContent = 'رمز لاعب غير صحيح — استخدم الرمز الحالي الظاهر عند المشرف بعد آخر حفظ للإعدادات'; }
+  else { pendingLogin = null; localStorage.removeItem('noiseRole'); localStorage.removeItem('noiseCode'); $('msg').textContent = 'تعذر الدخول: تأكد من رمز اللاعبين وكتابة اسمك كما سجّله المشرف'; }
 });
 
 s.on('watchAuth', ok => {
