@@ -170,7 +170,7 @@ io.on("connection", socket => {
     if (code !== game.admin) return socket.emit("auth", { ok: false });
     socket.data.role = "admin";
     joinPresence(socket, "admin");
-    socket.emit("auth", { ok: true, admin: game.admin, watch: game.watch, playerCode: game.playerCode, codes: game.codes });
+    socket.emit("auth", { ok: true, admin: game.admin, watch: game.watch });
   });
 
   socket.on("watchLogin", code => {
@@ -181,16 +181,14 @@ io.on("connection", socket => {
   });
 
   socket.on("playerLogin", payload => {
-    const normalizedCode = String(typeof payload === "string" ? payload : payload?.code || "").trim().toUpperCase();
-    const playerName = String(payload?.name || "").trim().toLocaleLowerCase();
+    const playerName = String(payload || "").trim().toLocaleLowerCase();
     let player = null;
-    if (normalizedCode === game.playerCode && playerName) {
+    if (playerName) {
       for (let team = 0; team < game.teams.length; team++) {
         const playerIndex = game.teams[team].players.findIndex(p => p.name.toLocaleLowerCase() === playerName);
         if (playerIndex !== -1) { player = { team, player: playerIndex }; break; }
       }
     }
-    if (!player && game.codes[normalizedCode]) player = game.codes[normalizedCode];
     if (!player) return socket.emit("playerAuth", false);
     socket.data.role = "player";
     socket.data.player = player;
@@ -236,7 +234,7 @@ io.on("connection", socket => {
     game.board = [];
     game.log = [];
     game.teams.forEach(team => team.score = 0);
-    socket.emit("auth", { ok: true, admin: game.admin, watch: game.watch, codes: game.codes });
+    socket.emit("auth", { ok: true, admin: game.admin, watch: game.watch });
     sendState();
   });
 
