@@ -101,7 +101,7 @@ s.on('auth', data => {
   $('game').hidden = false;
   $('codes').innerHTML = 'رمز المشرف: ' + escapeHtml(data.admin) +
     '<br>رمز المشاهدة: ' + escapeHtml(data.watch) + '<br>' +
-    Object.entries(data.codes).map(([code, player]) =>
+    Object.entries(data.codes || {}).map(([code, player]) =>
       'لاعب ' + (player.team + 1) + '-' + (player.player + 1) + ': ' + escapeHtml(code)
     ).join('<br>');
   emit('requestState');
