@@ -123,9 +123,9 @@ function config() {
 
 s.on('state', game => {
   if ($('game').hidden) return;
-  $('scores').innerHTML = game.teams.map(team =>
-    '<article><b>' + escapeHtml(team.name) + '</b><strong>' + team.score +
-    '</strong><small>' + team.players.map(escapeHtml).join(' • ') + '</small></article>'
+  $('scores').innerHTML = game.teams.map((team, index) =>
+    '<article class="team-score"><b>' + escapeHtml(team.name) + '</b><strong>' + team.score +
+    '</strong><small>' + team.players.map(escapeHtml).join(' • ') + '</small><em>نقاط الفريق ' + (index + 1) + '</em></article>'
   ).join('');
 
   const suffix = game.status === 'roundEnd' ? ' — انتهت الجولة' :
@@ -133,6 +133,10 @@ s.on('state', game => {
   $('turn').textContent = 'الجولة ' + game.round + '/' + game.rounds +
     ' — الدور: ' + game.turn + suffix;
   $('log').hidden = role !== 'admin';
+  const boardTitle = $('board-title');
+  if (boardTitle) boardTitle.textContent = role === 'admin' ? 'طاولة الكروت — مشاهدة مباشرة' : 'طاولة اللعب';
+  const adminView = $('admin-view-note');
+  if (adminView) adminView.hidden = role !== 'admin';
   if (window.noiseTurnClock) clearInterval(window.noiseTurnClock);
   const updateClock = () => {
     const seconds = game.turnEndsAt ? Math.max(0, Math.ceil((game.turnEndsAt - Date.now()) / 1000)) : 0;
