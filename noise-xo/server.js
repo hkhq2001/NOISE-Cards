@@ -1,6 +1,6 @@
 const express=require("express"),http=require("http"),crypto=require("crypto"),path=require("path");
 const {Server}=require("socket.io");
-const app=express(),server=http.createServer(app),io=new Server(server);
+const app=express(),server=http.createServer(app),io=new Server(server,{cors:{origin:["https://noise-xo.pages.dev","https://noise-xo.onrender.com"],methods:["GET","POST"]}});
 app.use(express.static(path.join(__dirname,"public")));
 const rooms=new Map(),makeCode=()=>crypto.randomBytes(3).toString("hex").toUpperCase(),clean=s=>String(s||"").trim().slice(0,22);
 const lines=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
