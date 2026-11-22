@@ -75,7 +75,7 @@ function config() {
       { name: $('t2').value.trim() || 'الفريق الثاني', players: [$('b1').value.trim(), $('b2').value.trim()] }
     ],
     rounds: $('rounds').value,
-    pairs: $('pairs').value,
+    cards: $('cards').value,
     bombs: $('bombs').value,
     bonuses: $('bonuses').value
   });
