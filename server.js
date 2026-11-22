@@ -91,13 +91,18 @@ function shuffle(items) {
 
 function createBoard() {
   const cards = [];
-  for (let i = 0; i < game.pairs; i++) {
+  const specialCount = game.bombs + game.bonuses;
+  const normalCount = Math.max(2, game.cardCount - specialCount);
+  const pairCount = Math.floor(normalCount / 2);
+  for (let i = 0; i < pairCount; i++) {
     cards.push({ kind: "match", value: i }, { kind: "match", value: i });
   }
+  if (normalCount % 2 === 1) cards.push({ kind: "match", value: `single-${game.round}` });
   for (let i = 0; i < game.bombs; i++) cards.push({ kind: "bomb", value: "💣" });
   for (let i = 0; i < game.bonuses; i++) {
     cards.push({ kind: "bonus", value: [5, 10, 15][Math.floor(Math.random() * 3)] });
   }
+  game.pairs = pairCount;
   game.board = shuffle(cards).map((card, id) => ({ ...card, id, up: false, gone: false }));
   game.revealed = [];
   game.busy = false;
@@ -123,18 +128,36 @@ function checkRoundEnd() {
 
 function isAdmin(socket) { return socket.data.role === "admin"; }
 
+function presenceSet(key) {
+  return key === "admin" ? game.online.admin : key === "watch" ? game.online.watchers : game.online.players[Number(key)];
+}
+
 function leavePresence(socket) {
   const key = socket.data.presenceKey;
   if (!key) return;
-  const set = key === "admin" ? game.online.admin : key === "watch" ? game.online.watchers : game.online.players[Number(key)];
-  if (set) set.delete(socket.id);
+  const set = presenceSet(key);
   socket.data.presenceKey = null;
-  sendState();
+  if (!set) return;
+  const timerKey = key;
+  const pending = presenceTimers.get(timerKey);
+  if (pending) clearTimeout(pending.timer);
+  const timer = setTimeout(() => {
+    set.delete(socket.id);
+    presenceTimers.delete(timerKey);
+    sendState();
+  }, PRESENCE_GRACE_MS);
+  presenceTimers.set(timerKey, { timer, socketId: socket.id });
 }
 
 function joinPresence(socket, key) {
-  leavePresence(socket);
-  const set = key === "admin" ? game.online.admin : key === "watch" ? game.online.watchers : game.online.players[Number(key)];
+  if (socket.data.presenceKey) leavePresence(socket);
+  const pending = presenceTimers.get(key);
+  const set = presenceSet(key);
+  if (pending) {
+    clearTimeout(pending.timer);
+    set?.delete(pending.socketId);
+    presenceTimers.delete(key);
+  }
   if (set) set.add(socket.id);
   socket.data.presenceKey = key;
   sendState();
@@ -184,9 +207,13 @@ io.on("connection", socket => {
       score: 0
     }));
     game.rounds = Math.max(1, Math.min(50, Number(data.rounds) || 1));
-    game.pairs = Math.max(1, Math.min(40, Number(data.pairs) || 8));
+    game.cardCount = Math.max(2, Math.min(100, Number(data.cards) || 19));
     game.bombs = Math.max(0, Math.min(20, Number(data.bombs) || 0));
     game.bonuses = Math.max(0, Math.min(20, Number(data.bonuses) || 0));
+    if (game.bombs + game.bonuses > game.cardCount - 2) {
+      game.bonuses = Math.min(game.bonuses, Math.max(0, game.cardCount - 2 - game.bombs));
+    }
+    game.pairs = Math.floor((game.cardCount - game.bombs - game.bonuses) / 2);
     game.codes = {};
     game.teams.forEach((team, teamIndex) => team.players.forEach((player, playerIndex) => {
       let code;
