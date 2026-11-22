@@ -6,6 +6,14 @@ function emit(event, data) { s.emit(event, data); }
 
 function login(nextRole) {
   role = nextRole;
+  if (nextRole === 'player') {
+    const name = $('playerName').value.trim();
+    if (!name) { $('msg').textContent = 'اكتب اسمك أولاً'; return; }
+    localStorage.setItem('noiseRole', 'player');
+    localStorage.setItem('noisePlayerName', name);
+    emit('playerLogin', name);
+    return;
+  }
   const code = $('code').value.trim().toUpperCase();
   localStorage.setItem('noiseRole', nextRole);
   localStorage.setItem('noiseCode', code);
@@ -14,13 +22,17 @@ function login(nextRole) {
 
 function authenticate(nextRole, code) {
   const normalizedCode = String(code || '').trim().toUpperCase();
-  emit(nextRole === 'admin' ? 'adminLogin' : nextRole === 'player' ? 'playerLogin' : 'watchLogin', normalizedCode);
+  emit(nextRole === 'admin' ? 'adminLogin' : 'watchLogin', normalizedCode);
 }
 
 s.on('connect', () => {
   const savedRole = localStorage.getItem('noiseRole');
   const savedCode = localStorage.getItem('noiseCode');
-  if (savedRole && savedCode) {
+  const savedName = localStorage.getItem('noisePlayerName');
+  if (savedRole === 'player' && savedName) {
+    role = 'player';
+    emit('playerLogin', savedName);
+  } else if (savedRole && savedCode) {
     role = savedRole;
     authenticate(savedRole, savedCode);
   }
@@ -41,7 +53,7 @@ s.on('auth', data => {
   if (!data.ok) {
     localStorage.removeItem('noiseRole');
     localStorage.removeItem('noiseCode');
-    $('msg').textContent = 'رمز غير صحيح';
+    $('msg').textContent = 'رمز الدخول غير صحيح';
     return;
   }
   role = 'admin';
@@ -49,16 +61,13 @@ s.on('auth', data => {
   $('admin').hidden = false;
   $('game').hidden = false;
   $('codes').innerHTML = 'رمز المشرف: ' + escapeHtml(data.admin) +
-    '<br>رمز المشاهدة: ' + escapeHtml(data.watch) + '<br>' +
-    Object.entries(data.codes).map(([code, player]) =>
-      'لاعب ' + (player.team + 1) + '-' + (player.player + 1) + ': ' + escapeHtml(code)
-    ).join('<br>');
+    '<br>رمز المشاهدة: ' + escapeHtml(data.watch) + '<br>دخول اللاعبين بالاسم فقط دون رمز.';
   emit('requestState');
 });
 
 s.on('playerAuth', ok => {
   if (ok) { role = 'player'; $('login').hidden = true; $('game').hidden = false; $('admin').hidden = true; emit('requestState'); }
-  else { localStorage.removeItem('noiseRole'); localStorage.removeItem('noiseCode'); $('msg').textContent = 'رمز لاعب غير صحيح — استخدم الرمز الحالي الظاهر عند المشرف بعد آخر حفظ للإعدادات'; }
+  else { localStorage.removeItem('noiseRole'); localStorage.removeItem('noiseCode'); localStorage.removeItem('noisePlayerName'); $('msg').textContent = 'الاسم غير مسجل في إعدادات المشرف'; }
 });
 
 s.on('watchAuth', ok => {
