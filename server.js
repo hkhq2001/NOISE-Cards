@@ -256,6 +256,18 @@ io.on("connection", socket => {
     card.up = true;
     game.revealed.push(card.id);
 
+    if (card.kind === "single") {
+      stopTurnTimer();
+      card.gone = true;
+      card.up = false;
+      game.revealed = [];
+      game.log.push("بطاقة منفردة — انتقل الدور");
+      checkRoundEnd();
+      if (game.status === "playing") advanceTurn();
+      else sendState();
+      return;
+    }
+
     if (card.kind === "bomb" || card.kind === "bonus") {
       stopTurnTimer();
       game.busy = true;
