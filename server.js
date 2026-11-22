@@ -10,7 +10,9 @@ app.use(express.static(__dirname));
 
 const makeCode = () => crypto.randomBytes(4).toString("hex").toUpperCase();
 let game;
-let turnTimer = null;\nconst presenceTimers = new Map();\nconst PRESENCE_GRACE_MS = 30000;
+let turnTimer = null;
+const presenceTimers = new Map();
+const PRESENCE_GRACE_MS = 30000;
 
 function resetGame() {
   game = {
